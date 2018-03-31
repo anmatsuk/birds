@@ -1,11 +1,14 @@
 #!/usr/bin/python
+
 import os
 import httplib
 import json
 import sys, getopt
 import subprocess
 import shutil
+import fileinput
 
+git_url = "https://github.com/anmatsuk/libft.git"
 
 class bcolors:
     HEADER = '\033[95m'
@@ -35,34 +38,42 @@ def git_clone(repo_url, repo_dir):
     cmd = 'git clone ' + repo_url + ' ' + repo_dir
     execute_shell_command(cmd, repo_dir)
 
+"""
+filling out Makefile with regular rules
+"""
 def init_makefile(path):
-	file = open(path, 'w+')
-	text = "NAME = \n"
-	text += "FILES = \n"
-	text += "INCLUDES = includes/\n"
-	text += "OBJECTS = $(FILES:srcs/%.c=./%.o)\n"
-	text += "./libft/libft.a\n"
-	text += "FLAGS = -Wall -Wextra -Werror\n"
-	text += "HDR = libft.h\n"
-	text += ".PHONY: all clean fclean re\n\n"
-	text += "all: $(NAME)\n"
-	text += "#$(NAME): $(LIBFT)\n"
-	text += "\t#@gcc -c $(FLAGS) $(FILES) -I$(INCLUDES) -I./libft\n"
-	text += "\t#@gcc -o $(NAME) $(FLAGS) $(OBJECTS) $(LIBFT) -I./libft -I$(INCLUDES)\n\n"
-	text += "#$(LIBFT):\n"
-	text += "\t#@make -C ./libft\n\n"
-	text += "clean:\n"
-	text += "\t#@make clean -C ./libft\n"
-	text += "\t@/bin/rm -f $(OBJECTS)\n\n"
-	text += "fclean: clean\n"
-	text += "\t#@make fclean -C ./libft\n"
-	text += "\t@/bin/rm -f $(NAME)\n"
-	text += "re: fclean all\n"
-	file.write(text)
-	file.close()
+	text = """NAME = 
+FILES = 
+INCLUDES = includes/
+OBJECTS = $(FILES:srcs/%.c=./%.o)
+./libft/libft.a
+FLAGS = -Wall -Wextra -Werror
+HDR = libft.h
+.PHONY: all clean fclean re
 
+all: $(NAME)
+#$(NAME): $(LIBFT)
+	#@gcc -c $(FLAGS) $(FILES) -I$(INCLUDES) -I./libft
+	#@gcc -o $(NAME) $(FLAGS) $(OBJECTS) $(LIBFT) -I./libft -I$(INCLUDES)
 
+#$(LIBFT):
+	#@make -C ./libft
 
+clean:
+	#@make clean -C ./libft
+	@/bin/rm -f $(OBJECTS)
+
+fclean: clean
+	#@make fclean -C ./libft
+	@/bin/rm -f $(NAME)
+re: fclean all
+"""
+	with open(path, "w+") as file:
+		file.write(text)
+
+"""
+Create main directory for the project with gitignore , src and includes
+"""
 def create_dir(project_path, project_name):
 
 	if project_path == "" or not os.path.isdir(project_path):
@@ -77,25 +88,45 @@ def create_dir(project_path, project_name):
 		sys.exit()
 	else:
 		 os.makedirs(project_path + project_name)
-	return project_path + project_name
+	project_path += project_name
+	os.makedirs(project_path + '/' + "src")
+	os.makedirs(project_path + '/' + "includes")
+	with open(project_path + '/' + "author", 'w+'): pass
+	file = open(project_path + '/' + "author", 'w+')
+	file.write("amatsuk")
+	file.close()
+	with open(project_path + '/' + ".gitignore", 'w+'): pass
+	file = open(project_path + '/' + ".gitignore", 'w+')
+	file.write("*.out")
+	file.write("*.o")
+	file.close()
+	return project_path
 
+"""
+Create Makefile
+"""
 def process_language(project_language, project_path):
 	if project_language == "c" or project_language == "C":
 		with open(project_path + '/' + "Makefile", 'w+'): pass
 		init_makefile(project_path + '/' + "Makefile")
-		os.makedirs(project_path + '/' + "src")
-		os.makedirs(project_path + '/' + "includes")
-		with open(project_path + '/' + ".gitignore", 'w+'): pass
-		file = open(project_path + '/' + ".gitignore", 'w+')
-		file.write("*.out")
-		file.close()
 
+"""
+clone repo for libft
+"""
 def process_include(include, project_path):
+	line = ""
+	if (include != "libft"):
+		line = raw_input("Would you like to add libft ? [y/n] ")
+    	if (line == "y" or line == "yes"):
+    		include = "libft"
 	if (include == "libft"):
 		os.makedirs(project_path + "/" + "libft")
 		print "Cloning libft ..."
-		git_clone("https://github.com/anmatsuk/libft.git", project_path + "/libft")
+		git_clone(git_url, project_path + "/libft")
 		shutil.rmtree(project_path + "/libft/" + ".git")
+
+def print_help():
+	print 'setup.py -n <project_name> [-p <path> -l <language> -i <libft>]'
 
 def main(argv):
 	name = ''
@@ -105,11 +136,11 @@ def main(argv):
 	try:
 		opts, args = getopt.getopt(sys.argv[1:], 'n:p:l:i:')
 	except getopt.GetoptError:
-		print 'setup.py -n <project_name> [-p <path> -l <language>]'
+		print_help()
 		sys.exit(2)
 	for opt, arg in opts:
 		if opt == '-h':
-			print 'setup.py -n <project_name> [-p <path> -l <language>]'
+			print_help()
 			sys.exit()
 		elif opt in ("-n", "--name"):
 			name = arg
@@ -120,16 +151,17 @@ def main(argv):
 		elif opt in ("-i", "--include"):
 			include = arg
 	if name == "":
-		print 'setup.py -n <project_name> [-p <path> -l <language>]'
+		print_help()
 		sys.exit(2)
 	
 	path = create_dir(path, name)
-	print "Created project: " + bcolors.OKGREEN + name + bcolors.ENDC + " path: " + bcolors.OKGREEN + path + bcolors.ENDC
+	print "Created project: {name} path: {path}".format(name=bcolors.OKGREEN + name + bcolors.ENDC,
+														path=bcolors.OKGREEN + path + bcolors.ENDC)
 	process_language(language, path)
 	process_include(include, path)
 
 if __name__ == "__main__":
 	if (len(sys.argv) - 1 == 0):
-		print 'setup.py -n <project_name> [-p <path> -l <language> -i <include>]'
+		print_help()
 		sys.exit()
 	main(sys.argv[1:])
